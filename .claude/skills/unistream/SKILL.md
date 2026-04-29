@@ -38,6 +38,19 @@ AbcCheckPoint -> BaseCheckPoint -> SimpleCheckpoint / YourCheckpoint
 AbcConsumer  -> BaseConsumer  -> SimpleConsumer / YourConsumer
 ```
 
+### Two Audiences
+
+**Plugin / Backend Developers** implement backend-specific methods:
+- Producer: `send()`, `new()`
+- Buffer: all methods (`new`, `put`, `should_i_emit`, `emit`, `commit`)
+- Checkpoint: `dump`, `load`, `dump_records`, `load_records`, `dump_as_*`
+- Consumer: `get_records()`, `new()`
+
+**End Users (Application Developers)** implement business logic and call API:
+- Producer: call `put(record)` — buffer, retry, `send()` handled automatically
+- Consumer: implement `process_record(record)`, optionally `process_failed_record(record)`, call `process_batch()` or `run()`
+- Checkpoint: optionally call `get_tracker()`, `get_not_succeeded_records()` for inspection/DLQ
+
 Data flow:
 
 ```
@@ -69,10 +82,10 @@ Serializes to JSON via `dataclasses.asdict`.
 
 ```python
 import dataclasses
-from unistream.records.dataclass import DataClassRecord
+import unistream.api as unistream
 
 @dataclasses.dataclass(frozen=True)
-class MyRecord(DataClassRecord):
+class MyRecord(unistream.DataClassRecord):
     user_id: str = ""
     event_type: str = ""
 
@@ -85,11 +98,11 @@ r = MyRecord.deserialize(s)  # round-trip
 
 ```python
 import dataclasses
-from unistream.record import BaseRecord
+import unistream.api as unistream
 from func_args.api import BaseFrozenModel
 
 @dataclasses.dataclass(frozen=True)
-class MyRecord(BaseRecord, BaseFrozenModel):
+class MyRecord(unistream.BaseRecord, BaseFrozenModel):
     id: str = dataclasses.field(default_factory=lambda: str(uuid.uuid4()))
     create_at: str = dataclasses.field(default_factory=lambda: get_utc_now().isoformat())
     payload: str = ""
@@ -122,9 +135,9 @@ Uses local log file as Write-Ahead Log. On crash, unsent records are recovered f
 
 ```python
 from pathlib import Path
-from unistream.buffers.file_buffer import FileBuffer
+import unistream.api as unistream
 
-buffer = FileBuffer.new(
+buffer = unistream.FileBuffer.new(
     record_class=MyRecord,
     path_wal=Path("/tmp/my_buffer.log"),
     max_records=100,        # emit when 100 records accumulated
@@ -147,8 +160,8 @@ if buffer.should_i_emit():
 | Method | Description |
 |--------|-------------|
 | `new(cls, **kwargs)` | Factory method. |
-| `send(records)` | Send batch records to target. **Subclass must implement this.** |
-| `put(record, skip_error=True, verbose=False)` | User-facing API. Manages buffer + retry internally. |
+| `send(records)` | **[Plugin Developer]** Send batch records to target. Subclass must implement this. |
+| `put(record, skip_error=True, verbose=False)` | **[End User API]** Manages buffer + retry internally. |
 
 ### Built-in: BaseProducer
 
@@ -165,9 +178,9 @@ Subclasses only need to implement `send()`.
 ### RetryConfig
 
 ```python
-from unistream.producer import RetryConfig
+import unistream.api as unistream
 
-rc = RetryConfig(
+rc = unistream.RetryConfig(
     exp_backoff=[1, 2, 4, 8, 15, 30, 60],  # seconds between retries (default)
 )
 ```
@@ -181,15 +194,15 @@ Appends records to a local file. Good for testing and demos.
 
 ```python
 from pathlib import Path
-from unistream.producers.simple import SimpleProducer
+import unistream.api as unistream
 
-producer = SimpleProducer.new(
-    buffer=FileBuffer.new(
+producer = unistream.SimpleProducer.new(
+    buffer=unistream.FileBuffer.new(
         record_class=MyRecord,
         path_wal=Path("/tmp/buffer.log"),
         max_records=10,
     ),
-    retry_config=RetryConfig(),
+    retry_config=unistream.RetryConfig(),
     path_sink=Path("/tmp/output.log"),
 )
 
@@ -200,10 +213,10 @@ producer.put(MyRecord(user_id="u-1", event_type="click"))
 
 ```python
 import dataclasses
-from unistream.producer import BaseProducer, RetryConfig
+import unistream.api as unistream
 
 @dataclasses.dataclass
-class KinesisProducer(BaseProducer):
+class KinesisProducer(unistream.BaseProducer):
     stream_name: str = dataclasses.field(default=REQ)
     bsm: "BotoSesManager" = dataclasses.field(default=REQ)
 
@@ -228,7 +241,7 @@ class KinesisProducer(BaseProducer):
 
 ### Protocol (AbcCheckPoint)
 
-Persistence methods — **subclass must implement all of these**:
+Persistence methods — **plugin/backend developers must implement all of these**:
 
 | Method | Description |
 |--------|-------------|
@@ -254,17 +267,17 @@ Implements the full state machine. **Fields:**
 | `batch_sequence` | `int` | Nth batch being processed. |
 | `batch` | `dict[str, Tracker]` | Per-record status tracking (keyed by `record.id`). |
 
-**Key methods (already implemented):**
+**Key methods (already implemented — framework internal):**
 
 | Method | Description |
 |--------|-------------|
-| `mark_as_in_progress(record)` | Lock record, set status to `in_progress`, increment attempts. |
-| `mark_as_succeeded(record)` | Set status to `succeeded`, release lock. |
-| `mark_as_failed_or_exhausted(record, e)` | Set `failed` or `exhausted` based on attempt count, store error. |
-| `is_ready_for_next_batch() -> bool` | True when all records in batch reached terminal status. |
-| `update_for_new_batch(records, next_pointer)` | Create trackers for new batch, set next_pointer. |
-| `is_record_locked(record, lock, now) -> bool` | Check if record is locked by another worker. |
-| `get_not_succeeded_records(record_class, records)` | Return records that didn't succeed (for DLQ). |
+| `mark_as_in_progress(record)` | **[Framework Internal]** Lock record, set status to `in_progress`, increment attempts. |
+| `mark_as_succeeded(record)` | **[Framework Internal]** Set status to `succeeded`, release lock. |
+| `mark_as_failed_or_exhausted(record, e)` | **[Framework Internal]** Set `failed` or `exhausted` based on attempt count, store error. |
+| `is_ready_for_next_batch() -> bool` | **[Framework Internal]** True when all records in batch reached terminal status. |
+| `update_for_new_batch(records, next_pointer)` | **[Framework Internal]** Create trackers for new batch, set next_pointer. |
+| `is_record_locked(record, lock, now) -> bool` | **[Framework Internal]** Check if record is locked by another worker. |
+| `get_not_succeeded_records(record_class, records)` | **[End User]** Return records that didn't succeed (for DLQ). |
 
 ### Tracker
 
@@ -287,10 +300,10 @@ class StatusEnum(BetterIntEnum):
 Uses local JSON files. Two files: one for metadata, one for records backup.
 
 ```python
-from unistream.checkpoints.simple import SimpleCheckpoint
+import unistream.api as unistream
 
 # Create or load from disk
-checkpoint = SimpleCheckpoint.load(
+checkpoint = unistream.SimpleCheckpoint.load(
     checkpoint_file="/tmp/checkpoint.json",
     records_file="/tmp/records.json",
     lock_expire=900,
@@ -303,10 +316,10 @@ checkpoint = SimpleCheckpoint.load(
 
 ```python
 import dataclasses
-from unistream.checkpoint import BaseCheckPoint
+import unistream.api as unistream
 
 @dataclasses.dataclass
-class DynamoDBS3CheckPoint(BaseCheckPoint):
+class DynamoDBS3CheckPoint(unistream.BaseCheckPoint):
     table_name: str = dataclasses.field(default=REQ)
     bucket_name: str = dataclasses.field(default=REQ)
     checkpoint_id: str = dataclasses.field(default=REQ)
@@ -353,9 +366,9 @@ class DynamoDBS3CheckPoint(BaseCheckPoint):
 | Method | Description |
 |--------|-------------|
 | `new(cls, **kwargs)` | Factory method. |
-| `get_records(limit) -> (list[AbcRecord], T_POINTER)` | Pull batch from stream. **Subclass must implement.** |
-| `process_record(record)` | Process one record. Raise on failure. **Subclass must implement.** |
-| `process_failed_record(record)` | DLQ hook for exhausted records. Default: no-op. |
+| `get_records(limit) -> (list[AbcRecord], T_POINTER)` | **[Plugin Developer]** Pull batch from stream. Subclass must implement. |
+| `process_record(record)` | **[End User]** Process one record. Raise on failure. Must implement. |
+| `process_failed_record(record)` | **[End User]** DLQ hook for exhausted records. Default: no-op. |
 
 ### Built-in: BaseConsumer
 
@@ -379,22 +392,22 @@ Implements the full consumption loop with tenacity retry.
 
 | Method | Description |
 |--------|-------------|
-| `process_batch(verbose=False)` | Pull and process one batch. |
-| `run(verbose=False)` | Infinite loop calling `process_batch()`. |
-| `commit()` | Advance `start_pointer = next_pointer` and persist. |
+| `process_batch(verbose=False)` | **[End User API]** Pull and process one batch. |
+| `run(verbose=False)` | **[End User API]** Infinite loop calling `process_batch()`. |
+| `commit()` | **[Framework Internal]** Advance `start_pointer = next_pointer` and persist. |
 
 ### Built-in: SimpleConsumer
 
 Reads from a local file written by `SimpleProducer`.
 
 ```python
-from unistream.consumers.simple import SimpleConsumer
+import unistream.api as unistream
 
-consumer = SimpleConsumer.new(
+consumer = unistream.SimpleConsumer.new(
     record_class=MyRecord,
     path_source=Path("/tmp/output.log"),
     path_dlq=Path("/tmp/dlq.log"),
-    checkpoint=SimpleCheckpoint.load(
+    checkpoint=unistream.SimpleCheckpoint.load(
         checkpoint_file="/tmp/checkpoint.json",
         records_file="/tmp/records.json",
     ),
@@ -412,11 +425,10 @@ consumer.process_batch(verbose=True)
 
 ```python
 import dataclasses
-from unistream.consumer import BaseConsumer
-from unistream.checkpoint import T_POINTER
+import unistream.api as unistream
 
 @dataclasses.dataclass
-class KinesisConsumer(BaseConsumer):
+class KinesisConsumer(unistream.BaseConsumer):
     stream_name: str = dataclasses.field(default=REQ)
     shard_id: str = dataclasses.field(default=REQ)
     bsm: "BotoSesManager" = dataclasses.field(default=REQ)
@@ -453,27 +465,22 @@ class KinesisConsumer(BaseConsumer):
 ```python
 import dataclasses
 from pathlib import Path
-from unistream.records.dataclass import DataClassRecord
-from unistream.buffers.file_buffer import FileBuffer
-from unistream.producers.simple import SimpleProducer
-from unistream.checkpoints.simple import SimpleCheckpoint
-from unistream.consumers.simple import SimpleConsumer
-from unistream.producer import RetryConfig
+import unistream.api as unistream
 
 # --- Define a record ---
 @dataclasses.dataclass(frozen=True)
-class EventRecord(DataClassRecord):
+class EventRecord(unistream.DataClassRecord):
     event_type: str = "unknown"
 
 # --- Producer side ---
 path_sink = Path("/tmp/stream.log")
-producer = SimpleProducer.new(
-    buffer=FileBuffer.new(
+producer = unistream.SimpleProducer.new(
+    buffer=unistream.FileBuffer.new(
         record_class=EventRecord,
         path_wal=Path("/tmp/producer_buffer.log"),
         max_records=5,
     ),
-    retry_config=RetryConfig(exp_backoff=[1, 2, 4]),
+    retry_config=unistream.RetryConfig(exp_backoff=[1, 2, 4]),
     path_sink=path_sink,
 )
 
@@ -481,14 +488,14 @@ for i in range(10):
     producer.put(EventRecord(event_type=f"type-{i}"), verbose=True)
 
 # --- Consumer side ---
-checkpoint = SimpleCheckpoint.load(
+checkpoint = unistream.SimpleCheckpoint.load(
     checkpoint_file="/tmp/consumer_checkpoint.json",
     records_file="/tmp/consumer_records.json",
     max_attempts=3,
 )
 
 @dataclasses.dataclass
-class MyConsumer(SimpleConsumer):
+class MyConsumer(unistream.SimpleConsumer):
     def process_record(self, record):
         print(f"Processing: {record.id} - {record.event_type}")
 
