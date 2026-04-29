@@ -4,6 +4,7 @@ docs/source/**/index.md
 .claude/claude-code-message*
 tmp/
 tests/**/*.json
+docs/source/**/*.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
