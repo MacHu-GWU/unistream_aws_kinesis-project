@@ -4,8 +4,14 @@
 AWS Kinesis Data Streams consumer implementation.
 """
 
+import sys
 import typing as T
 import dataclasses
+
+if sys.version_info >= (3, 11):
+    from typing import Self
+else:
+    from typing_extensions import Self
 
 from func_args.api import REQ
 
@@ -13,7 +19,7 @@ from unistream.abstraction import T_CHECK_POINT
 from unistream.checkpoint import T_POINTER
 from unistream.consumer import BaseConsumer
 
-from .records import T_KINESIS_RECORD
+from .records import KinesisRecord
 from .records import KinesisGetRecordsResponseRecord
 
 if T.TYPE_CHECKING:
@@ -33,7 +39,7 @@ class KinesisStreamShard:
     SequenceNumberRange: dict | None = dataclasses.field(default=None)
 
     @classmethod
-    def from_list_shards_response(cls, res: dict) -> list["KinesisStreamShard"]:
+    def from_list_shards_response(cls, res: dict) -> list[Self]:
         """
         Create a list of shard objects from the ``list_shards`` API response.
         """
@@ -61,7 +67,7 @@ class BaseAwsKinesisStreamConsumer(BaseConsumer):
     :param shard_id: Shard ID to read from.
     """
 
-    record_class: type[T_KINESIS_RECORD] = dataclasses.field(default=REQ)
+    record_class: type[KinesisRecord] = dataclasses.field(default=REQ)
     kinesis_client: "KinesisClient" = dataclasses.field(default=REQ)
     stream_name: str = dataclasses.field(default=REQ)
     shard_id: str = dataclasses.field(default=REQ)
@@ -69,7 +75,7 @@ class BaseAwsKinesisStreamConsumer(BaseConsumer):
     @classmethod
     def new(
         cls,
-        record_class: type[T_KINESIS_RECORD],
+        record_class: type[KinesisRecord],
         consumer_id: str,
         kinesis_client: "KinesisClient",
         stream_name: str,
@@ -105,7 +111,7 @@ class BaseAwsKinesisStreamConsumer(BaseConsumer):
     def get_records(
         self,
         limit: int | None = None,
-    ) -> tuple[list[T_KINESIS_RECORD], T_POINTER]:
+    ) -> tuple[list[KinesisRecord], T_POINTER]:
         """
         Call ``kinesis_client.get_records(...)`` API to get records.
         """

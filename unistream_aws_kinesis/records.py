@@ -5,9 +5,14 @@ Kinesis-specific record types for producing to and consuming from
 AWS Kinesis Data Streams.
 """
 
-import typing as T
+import sys
 import base64
 import dataclasses
+
+if sys.version_info >= (3, 11):
+    from typing import Self
+else:
+    from typing_extensions import Self
 
 from unistream.api import DataClassRecord
 
@@ -30,9 +35,9 @@ class KinesisRecord(DataClassRecord):
 
     @classmethod
     def from_get_record_data(
-        cls: T.Type["T_KINESIS_RECORD"],
+        cls,
         data: bytes,
-    ) -> "T_KINESIS_RECORD":
+    ) -> Self:
         """
         Convert ``get_records`` API response data to a record instance.
         """
@@ -45,9 +50,6 @@ class KinesisRecord(DataClassRecord):
         Defaults to ``self.id``.
         """
         return self.id
-
-
-T_KINESIS_RECORD = T.TypeVar("T_KINESIS_RECORD", bound=KinesisRecord)
 
 
 @dataclasses.dataclass
@@ -66,7 +68,7 @@ class KinesisGetRecordsResponseRecord:
     def from_get_records_response(
         cls,
         res: dict,
-    ) -> list["KinesisGetRecordsResponseRecord"]:
+    ) -> list[Self]:
         """
         Parse the ``Records`` part of the ``get_records`` API response.
         """
