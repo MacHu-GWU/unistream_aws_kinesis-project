@@ -3,6 +3,7 @@ unistream_aws_kinesis.egg-info/
 docs/source/**/index.md
 .claude/claude-code-message*
 tmp/
+tests/**/*.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
