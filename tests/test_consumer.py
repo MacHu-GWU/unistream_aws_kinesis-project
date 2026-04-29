@@ -9,7 +9,7 @@ import shutil
 import dataclasses
 from pathlib import Path
 
-from unistream.checkpoints.simple import SimpleCheckpoint
+from unistream.api import SimpleCheckpoint
 
 from unistream_aws_kinesis.api import KinesisRecord
 from unistream_aws_kinesis.api import KinesisGetRecordsResponseRecord

@@ -12,9 +12,9 @@ import shutil
 import dataclasses
 from pathlib import Path
 
-from unistream.buffers.file_buffer import FileBuffer
-from unistream.checkpoints.simple import SimpleCheckpoint
-from unistream.producer import RetryConfig
+from unistream.api import FileBuffer
+from unistream.api import SimpleCheckpoint
+from unistream.api import RetryConfig
 
 from unistream_aws_kinesis.api import KinesisRecord
 from unistream_aws_kinesis.api import AwsKinesisStreamProducer
