@@ -60,13 +60,13 @@ class KinesisGetRecordsResponseRecord:
     approximate_arrival_timestamp: str = dataclasses.field()
     data: bytes = dataclasses.field()
     partition_key: str = dataclasses.field()
-    encryption_type: T.Optional[str] = dataclasses.field()
+    encryption_type: str | None = dataclasses.field()
 
     @classmethod
     def from_get_records_response(
         cls,
         res: dict,
-    ) -> T.List["KinesisGetRecordsResponseRecord"]:
+    ) -> list["KinesisGetRecordsResponseRecord"]:
         """
         Parse the ``Records`` part of the ``get_records`` API response.
         """

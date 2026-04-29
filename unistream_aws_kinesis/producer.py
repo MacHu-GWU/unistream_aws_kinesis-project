@@ -9,10 +9,10 @@ import dataclasses
 
 from func_args.api import REQ
 
-from unistream.abstraction import T_RECORD, T_BUFFER
-from unistream.producer import BaseProducer, RetryConfig
-
-from .records import KinesisRecord
+from unistream.abstraction import T_RECORD
+from unistream.abstraction import T_BUFFER
+from unistream.producer import BaseProducer
+from unistream.producer import RetryConfig
 
 if T.TYPE_CHECKING:
     from mypy_boto3_kinesis.client import KinesisClient
@@ -55,7 +55,7 @@ class AwsKinesisStreamProducer(BaseProducer):
             stream_name=stream_name,
         )
 
-    def send(self, records: T.List[T_RECORD]):
+    def send(self, records: list[T_RECORD]):
         """
         Send records to AWS Kinesis Data Stream via ``put_records``.
         """

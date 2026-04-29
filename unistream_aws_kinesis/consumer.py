@@ -13,10 +13,8 @@ from unistream.abstraction import T_CHECK_POINT
 from unistream.checkpoint import T_POINTER
 from unistream.consumer import BaseConsumer
 
-from .records import (
-    T_KINESIS_RECORD,
-    KinesisGetRecordsResponseRecord,
-)
+from .records import T_KINESIS_RECORD
+from .records import KinesisGetRecordsResponseRecord
 
 if T.TYPE_CHECKING:
     from mypy_boto3_kinesis.client import KinesisClient
@@ -29,13 +27,13 @@ class KinesisStreamShard:
     """
 
     ShardId: str = dataclasses.field(default=None)
-    ParentShardId: T.Optional[str] = dataclasses.field(default=None)
-    AdjacentParentShardId: T.Optional[str] = dataclasses.field(default=None)
-    HashKeyRange: T.Optional[dict] = dataclasses.field(default=None)
-    SequenceNumberRange: T.Optional[dict] = dataclasses.field(default=None)
+    ParentShardId: str | None = dataclasses.field(default=None)
+    AdjacentParentShardId: str | None = dataclasses.field(default=None)
+    HashKeyRange: dict | None = dataclasses.field(default=None)
+    SequenceNumberRange: dict | None = dataclasses.field(default=None)
 
     @classmethod
-    def from_list_shards_response(cls, res: dict) -> T.List["KinesisStreamShard"]:
+    def from_list_shards_response(cls, res: dict) -> list["KinesisStreamShard"]:
         """
         Create a list of shard objects from the ``list_shards`` API response.
         """
@@ -63,7 +61,7 @@ class BaseAwsKinesisStreamConsumer(BaseConsumer):
     :param shard_id: Shard ID to read from.
     """
 
-    record_class: T.Type[T_KINESIS_RECORD] = dataclasses.field(default=REQ)
+    record_class: type[T_KINESIS_RECORD] = dataclasses.field(default=REQ)
     kinesis_client: "KinesisClient" = dataclasses.field(default=REQ)
     stream_name: str = dataclasses.field(default=REQ)
     shard_id: str = dataclasses.field(default=REQ)
@@ -71,7 +69,7 @@ class BaseAwsKinesisStreamConsumer(BaseConsumer):
     @classmethod
     def new(
         cls,
-        record_class: T.Type[T_KINESIS_RECORD],
+        record_class: type[T_KINESIS_RECORD],
         consumer_id: str,
         kinesis_client: "KinesisClient",
         stream_name: str,
@@ -83,8 +81,8 @@ class BaseAwsKinesisStreamConsumer(BaseConsumer):
         exp_backoff_min: int = 1,
         exp_backoff_max: int = 60,
         skip_error: bool = True,
-        delay: T.Union[int, float] = 0,
-        additional_kwargs: T.Optional[T.Dict[str, T.Any]] = None,
+        delay: int | float = 0,
+        additional_kwargs: dict[str, T.Any] | None = None,
     ):
         if additional_kwargs is None:
             additional_kwargs = {}
@@ -106,8 +104,8 @@ class BaseAwsKinesisStreamConsumer(BaseConsumer):
 
     def get_records(
         self,
-        limit: T.Optional[int] = None,
-    ) -> T.Tuple[T.List[T_KINESIS_RECORD], T_POINTER]:
+        limit: int | None = None,
+    ) -> tuple[list[T_KINESIS_RECORD], T_POINTER]:
         """
         Call ``kinesis_client.get_records(...)`` API to get records.
         """

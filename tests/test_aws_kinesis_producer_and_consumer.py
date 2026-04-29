@@ -4,24 +4,19 @@
 Test AWS Kinesis producer and consumer using moto mock.
 """
 
-import typing as T
 import shutil
 import dataclasses
 from pathlib import Path
-
-import boto3
 
 from unistream.buffers.file_buffer import FileBuffer
 from unistream.checkpoints.simple import SimpleCheckpoint
 from unistream.producer import RetryConfig
 
-from unistream_aws_kinesis.api import (
-    KinesisRecord,
-    KinesisGetRecordsResponseRecord,
-    AwsKinesisStreamProducer,
-    KinesisStreamShard,
-    AwsKinesisStreamConsumer,
-)
+from unistream_aws_kinesis.api import KinesisRecord
+from unistream_aws_kinesis.api import KinesisGetRecordsResponseRecord
+from unistream_aws_kinesis.api import AwsKinesisStreamProducer
+from unistream_aws_kinesis.api import KinesisStreamShard
+from unistream_aws_kinesis.api import AwsKinesisStreamConsumer
 from unistream_aws_kinesis.tests.mock_aws import BaseMockAwsTest
 
 
@@ -203,7 +198,7 @@ class TestAwsKinesisConsumer(BaseMockAwsTest):
         cls.shards = KinesisStreamShard.from_list_shards_response(res)
         cls.shard_id = cls.shards[0].ShardId
 
-    def _put_records_to_stream(self, records: T.List[MyRecord]):
+    def _put_records_to_stream(self, records: list[MyRecord]):
         """Helper to put records directly to Kinesis for consumer testing."""
         self.kinesis_client.put_records(
             Records=[
