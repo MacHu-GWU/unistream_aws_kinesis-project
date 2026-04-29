@@ -65,6 +65,15 @@ class BaseAwsKinesisStreamConsumer(BaseConsumer):
     :param kinesis_client: A boto3 Kinesis client.
     :param stream_name: Kinesis Stream name.
     :param shard_id: Shard ID to read from.
+
+    .. note::
+
+        The ``delay`` parameter in :meth:`new` defaults to **1 second** because the
+        ``GetRecords`` API is limited to **5 transactions per second per shard**
+        (see `Kinesis Quotas <https://docs.aws.amazon.com/streams/latest/dev/service-sizes-and-limits.html>`_).
+        A 1-second interval provides a comfortable margin (1 TPS vs 5 TPS limit).
+        Set a smaller value (minimum ~0.2 s) for lower latency, or a larger value
+        to reduce cost and throttling risk.
     """
 
     record_class: type[KinesisRecord] = dataclasses.field(default=REQ)
@@ -87,7 +96,7 @@ class BaseAwsKinesisStreamConsumer(BaseConsumer):
         exp_backoff_min: int = 1,
         exp_backoff_max: int = 60,
         skip_error: bool = True,
-        delay: int | float = 0,
+        delay: int | float = 1,
         additional_kwargs: dict[str, T.Any] | None = None,
     ):
         if additional_kwargs is None:

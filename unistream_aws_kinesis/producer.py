@@ -27,6 +27,16 @@ class AwsKinesisStreamProducer(BaseProducer):
 
     :param kinesis_client: A boto3 Kinesis client.
     :param stream_name: The name of the Kinesis stream.
+
+    .. note::
+
+        The ``PutRecords`` API accepts at most **500 records per request** and
+        **5 MB per request**, with a per-shard write limit of **1,000 records/sec**
+        and **1 MB/sec**
+        (see `Kinesis Quotas <https://docs.aws.amazon.com/streams/latest/dev/service-sizes-and-limits.html>`_).
+        When constructing the ``buffer``, make sure ``max_records <= 500`` and
+        ``max_bytes`` does not exceed 5 MB (5_000_000) to stay within a single
+        ``PutRecords`` call limit.
     """
 
     kinesis_client: "KinesisClient" = dataclasses.field(default=REQ)
